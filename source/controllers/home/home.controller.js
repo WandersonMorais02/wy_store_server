@@ -10,7 +10,8 @@ export default new class homeController
     {
         return res.status(200).json({
             status: "Ok!",
-            message: "Server online and operant."
+            message: "Server online and operant.",
+            developedBy: "WanTec(developer Wanderson Morais)"
         });
     }
 }
