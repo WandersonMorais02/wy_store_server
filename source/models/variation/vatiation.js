@@ -25,12 +25,10 @@ const VariationSchema = new Schema(
       min: 0,
     },
 
-    images: [
-      {
-        type: String,
-        trim: true,
-      },
-    ],
+    image: {
+      type: String, // agora é apenas uma
+      trim: true,
+    },
 
     stock: {
       type: Number,

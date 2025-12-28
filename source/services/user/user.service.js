@@ -1,7 +1,13 @@
 import mongoose from "mongoose";
-import User from "../../models/user/user.js";
+import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import pkg from "jsonwebtoken";
+
+import User from "../../models/user/user.js";
+import {
+  sendVerifyEmail,
+  sendWelcomeEmail,
+} from "../email/email.service.js";
 
 const { sign } = pkg;
 
@@ -26,46 +32,43 @@ export function canAccessUser(authUser, targetUser) {
 }
 
 class UserService {
-async list(authUser, { role, search = "", page = 1, limit = 10 }) {
-  if (!authUser) throw new Error("UNAUTHORIZED");
+  async list(authUser, { role, search = "", page = 1, limit = 10 }) {
+    if (!authUser) throw new Error("UNAUTHORIZED");
 
-  let query = {};
+    let query = {};
 
-  if (authUser.role === "ADMIN" && role) {
-    query.role = role;
-  } else if (authUser.role === "DEALER") {
-    query = {
-      $or: [{ _id: authUser.id }, { role: "CLIENT" }],
+    if (authUser.role === "ADMIN" && role) {
+      query.role = role;
+    } else if (authUser.role === "DEALER") {
+      query = { $or: [{ _id: authUser.id }, { role: "CLIENT" }] };
+    } else if (authUser.role === "CLIENT") {
+      query = { _id: authUser.id };
+    }
+
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    const pageInt = Number(page);
+    const limitInt = Number(limit);
+
+    const total = await User.countDocuments(query);
+    const users = await User.find(query)
+      .select("-password")
+      .skip((pageInt - 1) * limitInt)
+      .limit(limitInt)
+      .lean();
+
+    return {
+      users,
+      total,
+      page: pageInt,
+      pages: Math.ceil(total / limitInt),
     };
-  } else if (authUser.role === "CLIENT") {
-    query = { _id: authUser.id };
   }
-
-  if (search) {
-    query.$or = [
-      { name: { $regex: search, $options: "i" } },
-      { email: { $regex: search, $options: "i" } },
-    ];
-  }
-
-  const pageInt = Number(page);
-  const limitInt = Number(limit);
-
-  const total = await User.countDocuments(query);
-  const users = await User.find(query)
-    .select("-password")
-    .skip((pageInt - 1) * limitInt)
-    .limit(limitInt)
-    .lean();
-
-  return {
-    users,
-    total,
-    page: pageInt,
-    pages: Math.ceil(total / limitInt),
-  };
-}
-
 
   async create({ name, email, password, role }) {
     if (!name || !email || !password) {
@@ -73,21 +76,44 @@ async list(authUser, { role, search = "", page = 1, limit = 10 }) {
     }
 
     const exists = await User.findOne({ email });
-    if (exists) {
-      throw new Error("USER_EXISTS");
-    }
+    if (exists) throw new Error("USER_EXISTS");
 
     const passwordHash = await bcrypt.hash(password, 10);
+    const token = crypto.randomBytes(32).toString("hex");
 
     const user = await User.create({
       name,
       email,
       password: passwordHash,
       role: role ?? "CLIENT",
+      active: false,
+      emailVerificationToken: token,
+      emailVerificationExpires: Date.now() + 1000 * 60 * 60, // 1h
     });
 
-    const { password: _, ...userSafe } = user.toObject();
-    return userSafe;
+    await sendVerifyEmail(email, token);
+
+    const { password: _, ...safe } = user.toObject();
+    return safe;
+  }
+
+  async verifyEmail(token) {
+    if (!token) throw new Error("INVALID_TOKEN");
+
+    const user = await User.findOne({
+      emailVerificationToken: token,
+      emailVerificationExpires: { $gt: Date.now() },
+    });
+
+    if (!user) throw new Error("INVALID_TOKEN");
+
+    user.active = true;
+    user.emailVerificationToken = undefined;
+    user.emailVerificationExpires = undefined;
+
+    await user.save();
+
+    await sendWelcomeEmail(user.email, user.name);
   }
 
   async getById(authUser, id) {
@@ -118,6 +144,10 @@ async list(authUser, { role, search = "", page = 1, limit = 10 }) {
     const user = await User.findOne({ email }).select("+password");
     if (!user) throw new Error("INVALID_CREDENTIALS");
 
+    if (!user.active) {
+      throw new Error("EMAIL_NOT_VERIFIED");
+    }
+
     const match = await bcrypt.compare(password, user.password);
     if (!match) throw new Error("INVALID_CREDENTIALS");
 
@@ -135,7 +165,6 @@ async list(authUser, { role, search = "", page = 1, limit = 10 }) {
     );
 
     const { password: _, ...userSafe } = user.toObject();
-
     return { user: userSafe, token };
   }
 

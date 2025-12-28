@@ -1,15 +1,21 @@
 import UserService from "../../services/user/user.service.js";
 
 class UserController {
+  /* ===========================
+   * 📃 LISTAR
+   * =========================== */
   async index(req, res) {
     try {
       const result = await UserService.list(req.user, req.query);
       return res.json(result);
-    } catch (e) {
+    } catch {
       return res.status(500).json({ message: "Failed to list users" });
     }
   }
 
+  /* ===========================
+   * ➕ CRIAR
+   * =========================== */
   async create(req, res) {
     try {
       const user = await UserService.create(req.body);
@@ -19,12 +25,17 @@ class UserController {
         return res.status(409).json({ message: "User already exists" });
 
       if (e.message === "MISSING_FIELDS")
-        return res.status(400).json({ message: "Name, email and password are required" });
+        return res
+          .status(400)
+          .json({ message: "Name, email and password are required" });
 
       return res.status(500).json({ message: "Failed to create user" });
     }
   }
 
+  /* ===========================
+   * 👁️ VER POR ID
+   * =========================== */
   async show(req, res) {
     try {
       const user = await UserService.getById(req.user, req.params.id);
@@ -34,6 +45,9 @@ class UserController {
     }
   }
 
+  /* ===========================
+   * 👤 ME
+   * =========================== */
   async me(req, res) {
     try {
       const user = await UserService.me(req.user.id);
@@ -43,33 +57,73 @@ class UserController {
     }
   }
 
+  /* ===========================
+   * 🔐 LOGIN
+   * =========================== */
   async auth(req, res) {
     try {
       const result = await UserService.auth(req.body);
       return res.json(result);
-    } catch {
+    } catch (e) {
+      if (e.message === "EMAIL_NOT_VERIFIED") {
+        return res
+          .status(403)
+          .json({ message: "Please verify your email first" });
+      }
+
       return res.status(401).json({ message: "Email or password invalid" });
     }
   }
 
+  /* ===========================
+   * ✉️ VERIFY EMAIL
+   * =========================== */
+  async verifyEmail(req, res) {
+    try {
+      await UserService.verifyEmail(req.query.token);
+      return res.json({ message: "Email verified successfully" });
+    } catch {
+      return res
+        .status(400)
+        .json({ message: "Invalid or expired token" });
+    }
+  }
+
+  /* ===========================
+   * ✏️ UPDATE
+   * =========================== */
   async update(req, res) {
     try {
-      const user = await UserService.update(req.user, req.params.id, req.body);
+      const user = await UserService.update(
+        req.user,
+        req.params.id,
+        req.body
+      );
       return res.json(user);
     } catch (e) {
       return this.handleError(res, e);
     }
   }
 
+  /* ===========================
+   * 🔑 UPDATE PASSWORD
+   * =========================== */
   async updatePassword(req, res) {
     try {
-      await UserService.updatePassword(req.user, req.params.id, req.body.password);
+      await UserService.updatePassword(
+        req.user,
+        req.params.id,
+        req.body.password
+      );
       return res.json({ message: "Password updated successfully" });
     } catch (e) {
       return this.handleError(res, e);
     }
   }
 
+  /* ===========================
+   * ❌ DELETE
+   * =========================== */
   async delete(req, res) {
     try {
       await UserService.delete(req.user, req.params.id);
@@ -79,6 +133,9 @@ class UserController {
     }
   }
 
+  /* ===========================
+   * ⚠️ ERROR HANDLER
+   * =========================== */
   handleError(res, e) {
     const map = {
       INVALID_ID: [400, "Invalid user id"],
@@ -89,7 +146,9 @@ class UserController {
       INVALID_PASSWORD: [400, "Password must be at least 6 characters"],
     };
 
-    const [status, message] = map[e.message] || [500, "Internal server error"];
+    const [status, message] =
+      map[e.message] || [500, "Internal server error"];
+
     return res.status(status).json({ message });
   }
 }

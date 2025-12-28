@@ -1,8 +1,15 @@
 import Category from "../../models/Category/category.js";
 
 export default new class CategoryService {
-    async findAll() {
-        return Category.find();
+    async findAll(skip = 0, limit = 10) {
+    return Category.find()
+        .skip(skip)
+        .limit(limit)
+        .sort({ createdAt: -1 });
+    }
+
+    async count() {
+    return Category.countDocuments();
     }
     async findById(id) {
         return Category.findById(id);

@@ -9,12 +9,26 @@ export default new class CategoryController {
      */
     async index(req, res) {
         try {
-            const categories = await CategoryService.findAll();
-            return res.json(categories);
+            const { page = 1, limit = 10 } = req.query;
+
+            const skip = (Number(page) - 1) * Number(limit);
+
+            const [categories, total] = await Promise.all([
+                CategoryService.findAll(skip, limit),
+                CategoryService.count(),
+            ]);
+
+            return res.json({
+                data: categories,
+                total,
+                page: Number(page),
+                limit: Number(limit),
+            });
         } catch (error) {
             return res.status(500).json({ error: error.message });
         }
     }
+
 
     /**
      * GET /categories/:id
@@ -99,12 +113,11 @@ export default new class CategoryController {
      * @param { Response } res 
      * @returns 
      */
-    async findByName(req, res)
-    {
+    async findByName(req, res) {
         try {
             const { name } = req.params;
 
-            const category = await CategoryService.findByName( name );
+            const category = await CategoryService.findByName(name);
             if (!category) {
                 return res.status(404).json({ message: 'Categoria não encontrada' });
             }

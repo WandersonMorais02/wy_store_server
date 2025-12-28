@@ -4,6 +4,9 @@ import crypto from "crypto";
 
 const ProductSchema = new Schema(
   {
+    /* =========================
+       DADOS BÁSICOS
+    ========================== */
     name: {
       type: String,
       required: true,
@@ -16,7 +19,6 @@ const ProductSchema = new Schema(
       index: true,
     },
 
-    // SKU interno (controle / estoque)
     sku: {
       type: String,
       unique: true,
@@ -24,7 +26,6 @@ const ProductSchema = new Schema(
       immutable: true,
     },
 
-    // Código comercial (exibição / ERP)
     code: {
       type: String,
       unique: true,
@@ -69,18 +70,61 @@ const ProductSchema = new Schema(
       ref: "Category",
       required: true,
     },
+
+    /* =========================
+       📦 DADOS PARA FRETE
+    ========================== */
+
+    shipping: {
+      enabled: {
+        type: Boolean,
+        default: true,
+      },
+
+      weightKg: {
+        type: Number,
+        required: true,
+        min: 0.01,
+      },
+
+      dimensionsCm: {
+        height: {
+          type: Number,
+          required: true,
+          min: 1,
+        },
+        width: {
+          type: Number,
+          required: true,
+          min: 1,
+        },
+        length: {
+          type: Number,
+          required: true,
+          min: 1,
+        },
+      },
+
+      freeShipping: {
+        type: Boolean,
+        default: false,
+      },
+
+      allowedStates: {
+        type: [String],
+        default: ["PA"], // começa só no Pará
+      },
+    },
   },
   {
     timestamps: true,
   }
 );
 
-/**
- * 🔥 Hooks automáticos (Mongoose-safe)
- * NÃO usa next()
- */
+/* =========================
+   🔥 HOOKS AUTOMÁTICOS
+========================= */
 ProductSchema.pre("validate", function () {
-  // 🔹 SLUG único e estável
   if (!this.slug && this.name) {
     const baseSlug = slugify(this.name, {
       lower: true,
@@ -92,12 +136,10 @@ ProductSchema.pre("validate", function () {
     this.slug = `${baseSlug}-${suffix}`;
   }
 
-  // 🔹 SKU interno (controle)
   if (!this.sku) {
     this.sku = `SKU-${crypto.randomInt(100000, 999999)}`;
   }
 
-  // 🔹 Código comercial
   if (!this.code) {
     this.code = `PRD-${crypto
       .randomBytes(4)

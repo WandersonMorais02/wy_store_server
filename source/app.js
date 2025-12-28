@@ -4,6 +4,9 @@ import cors from "cors";
 import AppRouter from "./routes.js";
 import mongoose from "mongoose";
 
+import pkg from "path";
+const path = pkg;
+
 export default class App
 {
     constructor()
@@ -40,6 +43,11 @@ export default class App
     {
         this.app.use(express.json());
         this.app.use(cors());
+
+        // 👇 servir arquivos estáticos
+        this.app.use(
+            express.static(path.resolve("source/static"))
+        );
     }
 
     /**

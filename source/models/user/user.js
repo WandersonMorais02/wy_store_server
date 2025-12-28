@@ -6,42 +6,35 @@ export const UserRoles = {
   CLIENT: "CLIENT",
 };
 
-const UserSchema = new Schema(
-  {
-    name: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-
-    email: {
-      type: String,
-      required: true,
-      unique: true,
-      lowercase: true,
-      trim: true,
-    },
-
-    password: {
-      type: String,
-      required: true,
-      select: false, // não retorna a senha por padrão
-    },
-
-    role: {
-      type: String,
-      enum: Object.values(UserRoles),
-      default: UserRoles.CLIENT,
-    },
-
-    active: {
-      type: Boolean,
-      default: true,
-    },
+const UserSchema = new Schema({
+  name: String,
+  email: {
+    type: String,
+    unique: true,
+    lowercase: true,
   },
-  {
-    timestamps: true, // createdAt e updatedAt
-  }
-);
+  password: {
+    type: String,
+    select: false,
+  },
+  role: {
+    type: String,
+    enum: Object.values(UserRoles),
+    default: UserRoles.CLIENT,
+  },
+  active: {
+    type: Boolean,
+    default: false, // 👈 agora começa INATIVO
+  },
+
+  emailVerificationToken: {
+    type: String,
+    select: false,
+  },
+  emailVerificationExpires: {
+    type: Date,
+    select: false,
+  },
+}, { timestamps: true });
 
 export default model("User", UserSchema);

@@ -4,8 +4,21 @@ export default new class ProductController {
 
   async index(req, res) {
     try {
-      const products = await ProductService.findAll();
-      return res.json(products);
+      const { search = "", page = 1, limit = 10 } = req.query;
+
+      const result = await ProductService.findAll({
+        search,
+        page,
+        limit,
+      });
+
+      return res.json({
+        data: result.products,
+        total: result.total,
+        page: result.page,
+        limit: result.limit,
+      });
+
     } catch (error) {
       return res.status(500).json({ error: error.message });
     }
@@ -27,10 +40,9 @@ export default new class ProductController {
   }
 
   /**
-   * POST /products (com imagem)
+   * POST /products
    */
   async store(req, res) {
-    console.log("🧾 productController.store");
     try {
       const product = await ProductService.create({
         ...req.body,
@@ -45,7 +57,7 @@ export default new class ProductController {
   }
 
   /**
-   * PUT /products/:id (com ou sem imagem)
+   * PUT /products/:id
    */
   async update(req, res) {
     try {

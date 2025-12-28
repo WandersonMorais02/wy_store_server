@@ -1,12 +1,35 @@
 import fs from "fs";
 import path from "path";
-import Product from "../../models/product/product.js"
+import Product from "../../models/product/product.js";
 import Variation from "../../models/variation/vatiation.js";
 
 export default new class ProductService {
 
-  async findAll() {
-    return Product.find().populate("category");
+  async findAll({ search = "", page = 1, limit = 10 }) {
+    const query = {};
+
+    if (search) {
+      query.name = { $regex: search, $options: "i" };
+    }
+
+    const skip = (page - 1) * limit;
+
+    const [products, total] = await Promise.all([
+      Product.find(query)
+        .populate("category")
+        .skip(skip)
+        .limit(Number(limit))
+        .sort({ createdAt: -1 }),
+
+      Product.countDocuments(query)
+    ]);
+
+    return {
+      products,
+      total,
+      page: Number(page),
+      limit: Number(limit),
+    };
   }
 
   async findById(id) {
@@ -14,7 +37,6 @@ export default new class ProductService {
   }
 
   async create(data) {
-    // 🔒 Evita produto duplicado por nome + categoria
     const exists = await Product.findOne({
       name: data.name,
       category: data.category,
@@ -24,27 +46,13 @@ export default new class ProductService {
       throw new Error("Produto já existe nessa categoria");
     }
 
-    const payload = { ...data };
-
-    if (data.file) {
-      payload.banner = this.buildImagePath(data);
-    }
-
-    delete payload.file;
-    delete payload.folder;
+    const payload = this.normalizePayload(data);
 
     return Product.create(payload);
   }
 
   async update(id, data) {
-    const payload = { ...data };
-
-    if (data.file) {
-      payload.banner = this.buildImagePath(data);
-    }
-
-    delete payload.file;
-    delete payload.folder;
+    const payload = this.normalizePayload(data);
 
     return Product.findByIdAndUpdate(id, payload, {
       new: true,
@@ -56,12 +64,10 @@ export default new class ProductService {
     const product = await Product.findById(id);
     if (!product) return null;
 
-    // 🧹 Deleta imagem do produto
     if (product.banner) {
       this.deleteFile(product.banner);
     }
 
-    // 🧹 Deleta variações + imagens
     const variations = await Variation.find({ product: id });
 
     for (const variation of variations) {
@@ -78,6 +84,39 @@ export default new class ProductService {
 
   async updateStock(id, stock) {
     return Product.findByIdAndUpdate(id, { stock }, { new: true });
+  }
+
+  /**
+   * 🔥 Normaliza payload e valida shipping
+   */
+  normalizePayload(data) {
+    const payload = { ...data };
+
+    if (data.file) {
+      payload.banner = this.buildImagePath(data);
+    }
+
+    // 🔎 Validação mínima de frete
+    if (payload.shipping?.enabled) {
+      const { weightKg, dimensionsCm } = payload.shipping;
+
+      if (!weightKg || weightKg <= 0) {
+        throw new Error("Peso do produto é obrigatório para envio");
+      }
+
+      if (
+        !dimensionsCm?.height ||
+        !dimensionsCm?.width ||
+        !dimensionsCm?.length
+      ) {
+        throw new Error("Dimensões do produto são obrigatórias");
+      }
+    }
+
+    delete payload.file;
+    delete payload.folder;
+
+    return payload;
   }
 
   buildImagePath({ file, folder }) {
